@@ -8,15 +8,26 @@
   <script src="https://unpkg.com/@jspsych/plugin-image-keyboard-response"></script>
   <script src="https://unpkg.com/@jspsych/plugin-html-slider-response"></script>
   <script src="https://unpkg.com/@jspsych/plugin-survey-html-form"></script>
+
   <style>
-  /* スライダー全体の横幅を100%にする */
-  .jspsych-html-slider-response-container .jspsych-slider {
-    width: 100% !important;
-    margin: 0 auto; /* 中央寄せ */
-  }
+    .jspsych-html-slider-response-container .jspsych-slider {
+      width: 100% !important;
+      margin: 0 auto;
+    }
+    canvas { border: 1px solid #444; }
+    .btn {
+      padding: 8px 16px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body></body>
+
 <script>
 
 var jsPsych = initJsPsych();
@@ -49,7 +60,7 @@ stimuli.forEach(function(stim){
     type: jsPsychImageKeyboardResponse,
     stimulus: stim.stimulus,
     choices: "NO_KEYS",
-    trial_duration: duration*1000,
+    trial_duration: duration * 1000,
     data: {trial_type: "image_presentation", duration: duration, img: stim.stimulus}
   });
 
@@ -71,114 +82,159 @@ stimuli.forEach(function(stim){
     html: `<textarea name="reason_initial" rows="5" cols="60"></textarea>`,
     data: {trial_type: "initial_reason", img: stim.stimulus, duration: duration},
     on_finish: function(data){
-      data.reason_initial = data.response.reason_initial; // 文字だけ残す
+      data.reason_initial = data.response.reason_initial;
       delete data.response;
     }
   });
 
-  // (5) 詳細判断 + 矩形選択 + スライダー
+  // (5) 再提示 + 投げ縄選択 + スライダー + 理由編集
   timeline.push({
     type: jsPsychHtmlSliderResponse,
+
     stimulus: function(){
-      var last_data = jsPsych.data.get().filter({trial_type: "initial_reason"}).last(1).values()[0];
+      var last_data = jsPsych.data.get()
+        .filter({trial_type: "initial_reason"})
+        .last(1).values()[0];
       var last_reason = last_data?.reason_initial || "";
+
       return `
-        <p>再度画像を提示します。怪しいと思った箇所を四角で選択してください。</p>
-        <canvas id="selectionCanvas" style="border:1px solid black;"></canvas>
+        <p>再度画像を提示します。怪しい箇所を自由に囲んでください（複数可）。</p>
+
+        <canvas id="lassoCanvas"></canvas><br>
+
+        <button class="btn" id="finishLasso">囲み確定（1つ追加）</button>
+        <button class="btn" id="resetLasso">やり直す</button>
+
         <p>理由（編集可）:<br>
-          <textarea id="reason_final" rows="5" cols="60">${last_reason}</textarea></p>
+        <textarea id="reason_final" rows="5" cols="60">${last_reason}</textarea></p>
       `;
     },
-    labels: ["完全に人間", "かなり人間", "やや人間", "不明", "ややAI", "かなりAI", "完全にAI"],
+
+    labels: ["完全に人間","かなり人間","やや人間","不明","ややAI","かなりAI","完全にAI"],
     min: 0, max: 6, start: 3, step: 1,
     require_movement: true,
     slider_width: 800,
+    data: {trial_type:"final_reason", img:stim.stimulus, duration:duration},
+
     on_load: function(){
-      // キャンバスに画像を描画（元のサイズに合わせる）
-      var canvas = document.getElementById("selectionCanvas");
-      var ctx = canvas.getContext("2d");
-      var img = new Image();
+
+      const canvas = document.getElementById("lassoCanvas");
+      const ctx    = canvas.getContext("2d");
+
+      const img = new Image();
       img.src = stim.stimulus;
+
+      window.lassoList = [];
+      let currentLasso = [];
+      let drawing = false;
+
       img.onload = function(){
-        canvas.width = img.width;
+        canvas.width  = img.width;
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
       };
 
-      // 矩形選択処理
-      let startX, startY, isDrawing = false;
-      rect = {}; // trialごとの矩形
-
-      canvas.addEventListener("mousedown", function(e){
-        isDrawing = true;
-        const rectCanvas = canvas.getBoundingClientRect();
-        startX = e.clientX - rectCanvas.left;
-        startY = e.clientY - rectCanvas.top;
+      canvas.addEventListener("mousedown", e=>{
+        drawing = true;
+        currentLasso = [];
+        const rect = canvas.getBoundingClientRect();
+        currentLasso.push({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        });
       });
 
-      canvas.addEventListener("mousemove", function(e){
-        if(!isDrawing) return;
-        const rectCanvas = canvas.getBoundingClientRect();
-        const currentX = e.clientX - rectCanvas.left;
-        const currentY = e.clientY - rectCanvas.top;
+      canvas.addEventListener("mousemove", e=>{
+        if(!drawing) return;
+        const rect = canvas.getBoundingClientRect();
+        currentLasso.push({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        });
 
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img, 0, 0);
+
+        // すでに確定したラッソ
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
-        ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+        for(const l of window.lassoList){
+          ctx.beginPath();
+          ctx.moveTo(l[0].x, l[0].y);
+          l.forEach(p => ctx.lineTo(p.x, p.y));
+          ctx.closePath();
+          ctx.stroke();
+        }
+
+        // 描画中のラッソ
+        ctx.strokeStyle = "yellow";
+        ctx.beginPath();
+        ctx.moveTo(currentLasso[0].x, currentLasso[0].y);
+        currentLasso.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.stroke();
       });
 
-      canvas.addEventListener("mouseup", function(e){
-        isDrawing = false;
-        const rectCanvas = canvas.getBoundingClientRect();
-        const endX = e.clientX - rectCanvas.left;
-        const endY = e.clientY - rectCanvas.top;
+      canvas.addEventListener("mouseup", ()=>{
+        drawing = false;
+      });
 
-        rect = {
-          x: Math.min(startX, endX),
-          y: Math.min(startY, endY),
-          width: Math.abs(endX - startX),
-          height: Math.abs(endY - startY)
-        };
+      document.getElementById("finishLasso").onclick = function(){
+        if(currentLasso.length > 1) window.lassoList.push(currentLasso);
 
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img, 0, 0);
+
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
-        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-      });
+        for(const l of window.lassoList){
+          ctx.beginPath();
+          ctx.moveTo(l[0].x, l[0].y);
+          l.forEach(p => ctx.lineTo(p.x,p.y));
+          ctx.closePath();
+          ctx.stroke();
+        }
+      };
+
+      document.getElementById("resetLasso").onclick = function(){
+        window.lassoList = [];
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(img, 0, 0);
+      };
     },
+
     on_finish: function(data){
       data.reason_final = document.getElementById("reason_final").value;
-      data.rect = rect; // 矩形座標
-    },
-    data: {trial_type: "final_reason", img: stim.stimulus, duration: duration}
+      data.lasso = window.lassoList;
+    }
+
   });
 
 });
 
-// === 実験終了画面 ===
+// === 実験終了画面（JSONダウンロード） ===
 timeline.push({
   type: jsPsychHtmlKeyboardResponse,
   stimulus: `<p>実験終了です。ありがとうございました。</p>
-             <p><button id="download">データを保存</button></p>`,
+             <p><button id="download">JSONデータを保存</button></p>`,
   choices: "NO_KEYS",
+
   on_load: function() {
     document.getElementById('download').addEventListener('click', function() {
-      var csv = jsPsych.data.get().csv();
-      var blob = new Blob([csv], { type: 'text/csv' });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
+
+      const json = JSON.stringify(jsPsych.data.get().values(), null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
       a.href = url;
-      a.download = 'experiment_data.csv';
+      a.download = 'experiment_data.json';
       a.click();
       URL.revokeObjectURL(url);
+
     });
   }
 });
 
-// === 実験開始 ===
 jsPsych.run(timeline);
 
 </script>
