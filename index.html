@@ -16,6 +16,8 @@
       padding: 0;
       text-align: center;
       font-family: sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     .center-block {
@@ -31,25 +33,28 @@
       border: 1px solid #444;
       max-width: 95vw;
       height: auto;
+      touch-action: none;
     }
 
     .btn {
-      padding: 8px 16px;
+      padding: 12px 20px;
       background: #0066cc;
       color: white;
       border: none;
       border-radius: 6px;
       margin: 6px;
       cursor: pointer;
+      font-size: 18px;
     }
 
     /* ▼ スライダーを常に画面幅にフィット */
     .jspsych-html-slider-response-container .jspsych-slider {
       width: 90vw !important;
       max-width: 900px;
+      margin: 0 auto;
     }
 
-    /* ▼ 7段階目盛りを表示するバー */
+    /* ▼ 7段階用の目盛り */
     .ticks {
       position: relative;
       width: 90vw;
@@ -73,8 +78,9 @@
       max-width: 900px;
       display: flex;
       justify-content: space-between;
-      margin-top: 5px;
-      font-size: 16px;
+      margin-top: 10px;
+      font-size: 18px;
+      position: relative;
     }
 
     .slider-center-label {
@@ -85,19 +91,25 @@
 
     /* jsPsychスライダー全体を中央寄せ */
     .jspsych-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center !important;
-    justify-content: center;
-    text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center !important;
+      justify-content: center;
+      text-align: center;
+      width: 100%;
     }
 
-    /* スライダー本体を中央に固定 */
     .jspsych-html-slider-response-container {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center !important;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center !important;
+    }
+
+    textarea {
+      width: 90vw;
+      max-width: 900px;
+      font-size: 16px;
     }
   </style>
 </head>
@@ -108,7 +120,7 @@
 var jsPsych = initJsPsych({override_safe_mode: true});
 var timeline = [];
 
-// === 刺激リスト ===
+/* === 刺激リスト === */
 var stimuli = [
   {stimulus: 'stimuli/cat_drawing_notAI.jpg'},
   {stimulus: 'stimuli/cat_drawing_AI.png'},
@@ -140,18 +152,16 @@ stimuli.forEach(function(stim){
           </div>
 
           <p>判断理由:</p>
-          <textarea id="reason_final" rows="5" cols="60"></textarea>
+          <textarea id="reason_final" rows="5"></textarea>
 
           <br><br>
 
-          <!-- ▼ ラベル（非AI | 不明 | AI） -->
-          <div class="slider-labels" style="position: relative;">
+          <div class="slider-labels">
             <span>非AI</span>
             <span class="slider-center-label">不明</span>
             <span>AI</span>
           </div>
 
-          <!-- ▼ 7段階用の目盛り -->
           <div class="ticks">
             <div class="tick" style="--pos:0;"></div>
             <div class="tick" style="--pos:16.6;"></div>
@@ -170,14 +180,13 @@ stimuli.forEach(function(stim){
     start: 3,
     step: 1,
     slider_width: 900,
-
     button_label: "次の問題へ",
 
     data: {trial_type:"final_reason", img:stim.stimulus},
 
     on_load: function() {
 
-      /* ==== キャンバスのラッソ処理 ==== */
+      /* ==== ラッソ描画（PC + スマホタッチ対応） ==== */
       const canvas = document.getElementById("lassoCanvas");
       const ctx    = canvas.getContext("2d");
       const img = new Image();
@@ -188,25 +197,41 @@ stimuli.forEach(function(stim){
       let drawing = false;
 
       img.onload = function(){
-        canvas.width  = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+
+        /* 画面幅に合わせてキャンバス縮小 */
+        const scale = Math.min(0.95 * window.innerWidth / img.width, 1);
+        canvas.width  = img.width * scale;
+        canvas.height = img.height * scale;
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       };
 
-      canvas.addEventListener("mousedown", e=>{
+      function getPos(e){
+        const rect = canvas.getBoundingClientRect();
+        if(e.touches){
+          return {
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top
+          };
+        }
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+      }
+
+      function startDraw(e){
         drawing = true;
         currentLasso = [];
-        const rect = canvas.getBoundingClientRect();
-        currentLasso.push({x: e.clientX - rect.left, y: e.clientY - rect.top});
-      });
+        currentLasso.push(getPos(e));
+      }
 
-      canvas.addEventListener("mousemove", e=>{
+      function moveDraw(e){
         if(!drawing) return;
-        const rect = canvas.getBoundingClientRect();
-        currentLasso.push({x: e.clientX - rect.left, y: e.clientY - rect.top});
+        currentLasso.push(getPos(e));
 
         ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0,0, canvas.width, canvas.height);
 
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
@@ -224,14 +249,28 @@ stimuli.forEach(function(stim){
         ctx.moveTo(currentLasso[0].x, currentLasso[0].y);
         currentLasso.forEach(p => ctx.lineTo(p.x, p.y));
         ctx.stroke();
-      });
+      }
 
-      canvas.addEventListener("mouseup", ()=>{ drawing = false; });
+      function endDraw(){
+        drawing = false;
+      }
 
+      /* PC操作 */
+      canvas.addEventListener("mousedown", startDraw);
+      canvas.addEventListener("mousemove", moveDraw);
+      canvas.addEventListener("mouseup", endDraw);
+
+      /* スマホタッチ */
+      canvas.addEventListener("touchstart", startDraw);
+      canvas.addEventListener("touchmove", moveDraw);
+      canvas.addEventListener("touchend", endDraw);
+
+      /* ボタン処理 */
       document.getElementById("finishLasso").onclick = function(){
         if(currentLasso.length > 1) window.lassoList.push(currentLasso);
+
         ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
@@ -247,7 +286,7 @@ stimuli.forEach(function(stim){
       document.getElementById("resetLasso").onclick = function(){
         window.lassoList = [];
         ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       };
     },
 
@@ -259,7 +298,7 @@ stimuli.forEach(function(stim){
 
 });
 
-// === 実験終了画面 ===
+/* === 実験終了画面 === */
 timeline.push({
   type: jsPsychHtmlKeyboardResponse,
   stimulus: `
