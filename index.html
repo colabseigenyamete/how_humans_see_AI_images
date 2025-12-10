@@ -142,7 +142,7 @@ stimuli.forEach(function(stim){
     stimulus: function(){
       return `
         <div class="center-block">
-          <p>怪しい箇所を囲んで選択してください（複数可）。</p>
+          <p>判断理由になった箇所を囲んで選択してください（複数選択可能です）</p>
 
           <canvas id="lassoCanvas"></canvas>
 
@@ -325,3 +325,4 @@ timeline.push({
 jsPsych.run(timeline);
 </script>
 </html>
+
