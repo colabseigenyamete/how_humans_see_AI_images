@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>AI画像識別実験</title>
+  <title>AI画像識別実験（投げ縄付き）</title>
 
   <!-- jsPsych -->
   <script src="https://unpkg.com/jspsych@7.3.3"></script>
@@ -33,12 +33,7 @@
 // ----------------------------
 // jsPsych 初期化
 // ----------------------------
-var jsPsych = initJsPsych({
-  on_finish: function(){
-    // 実際のダウンロードは最後の trial で行う
-  }
-});
-
+var jsPsych = initJsPsych({});
 var timeline = [];
 
 // ----------------------------
@@ -51,17 +46,16 @@ var stimuli = [
 
 
 // ====================================================================
-// 各 刺激ごとのタスク
+// 刺激ループ
 // ====================================================================
 stimuli.forEach(function(stim){
 
-  // ----------------------------------------------------
-  // (1) 前提示（ランダム時間）
-  // ----------------------------------------------------
+  // (1) ランダム提示時間
   let duration = jsPsych.randomization.sampleWithoutReplacement(
-    [0.5,1,2,3,4,5,6],1
+    [0.5,1,2,3,4,5,6], 1
   )[0];
 
+  // (2) 前提示
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     choices: [" "],
@@ -72,9 +66,7 @@ stimuli.forEach(function(stim){
     `
   });
 
-  // ----------------------------------------------------
-  // (2) 画像提示
-  // ----------------------------------------------------
+  // (3) 画像提示
   timeline.push({
     type: jsPsychImageKeyboardResponse,
     stimulus: stim.stimulus,
@@ -83,9 +75,7 @@ stimuli.forEach(function(stim){
     data: {trial_type:"image_presentation", img:stim.stimulus, duration:duration}
   });
 
-  // ----------------------------------------------------
-  // (3) 初期スライダー
-  // ----------------------------------------------------
+  // (4) 初期スライダー（前と揃った形式）
   timeline.push({
     type: jsPsychHtmlSliderResponse,
     stimulus: `<p>この画像は AI 生成だと思いますか？</p>`,
@@ -95,12 +85,10 @@ stimuli.forEach(function(stim){
     data: {trial_type:"initial_slider", img:stim.stimulus, duration:duration}
   });
 
-  // ----------------------------------------------------
-  // (4) 初期理由
-  // ----------------------------------------------------
+  // (5) 初期理由
   timeline.push({
     type: jsPsychSurveyHtmlForm,
-    preamble: `<p>初期判断の理由を記述してください。</p>`,
+    preamble: `<p>初期判断の理由を書いてください。</p>`,
     html: `<textarea name="reason_initial" rows="5" cols="60"></textarea>`,
     data: {trial_type:"initial_reason", img:stim.stimulus},
     on_finish: function(data){
@@ -109,45 +97,44 @@ stimuli.forEach(function(stim){
     }
   });
 
-
-  // ----------------------------------------------------
-  // (5) 再提示 + 複数投げ縄 + 最終理由
-  // ----------------------------------------------------
+  // (6) 再提示 + 投げ縄 + 最終理由（ここにスライダーを入れる）
   timeline.push({
-    type: jsPsychHtmlKeyboardResponse,
-    choices: "NO_KEYS",
-    data: {trial_type:"final_lasso_and_reason", img:stim.stimulus, duration:duration},
+    type: jsPsychHtmlSliderResponse,
 
     stimulus: function(){
-      // 初期理由を取得
+
       let prev = jsPsych.data.get()
         .filter({trial_type:"initial_reason"})
         .last(1).values()[0];
+
       let initialText = prev ? prev.reason_initial : "";
 
       return `
-        <p>再度画像を提示します。怪しい箇所を自由に囲んでください（複数可）。</p>
+        <p>再度画像を提示します。怪しい部分を自由に囲んでください（複数可）。</p>
 
-        <canvas id="lassoCanvas"></canvas>
-        <br>
+        <canvas id="lassoCanvas"></canvas><br>
 
         <button class="btn" id="finishLasso">囲んだ部分を確定</button>
-        <button class="btn" id="resetLasso">やり直す</button>
+        <button class="btn" id="resetLasso">やり直し</button>
 
-        <p>最終判断の理由（編集可）</p>
+        <p>最終判断の理由</p>
         <textarea id="reason_final" rows="5" cols="60">${initialText}</textarea>
 
-        <p>最終判断（スライダー）</p>
-        <div id="sliderContainer"></div>
+        <p>最終判断</p>
       `;
     },
 
+    labels: ["完全に人間","かなり人間","やや人間","不明","ややAI","かなりAI","完全にAI"],
+    min:0, max:6, start:3, step:1, require_movement:true,
+    slider_width: 800,
+
+    data: {trial_type:"final_slider_and_reason", img:stim.stimulus, duration:duration},
+
     on_load: function(){
 
-      // ---------------- canvas 描画 ----------------
+      // --- Canvas セットアップ ---
       const canvas = document.getElementById("lassoCanvas");
       const ctx = canvas.getContext("2d");
-
       const img = new Image();
       img.src = stim.stimulus;
 
@@ -165,41 +152,39 @@ stimuli.forEach(function(stim){
         drawing = true;
         currentLasso = [];
         const rect = canvas.getBoundingClientRect();
-        currentLasso.push({x:e.clientX-rect.left, y:e.clientY-rect.top});
+        currentLasso.push({x:e.clientX-rect.left,y:e.clientY-rect.top});
       });
 
       canvas.addEventListener("mousemove", e=>{
         if(!drawing) return;
         const rect = canvas.getBoundingClientRect();
-        currentLasso.push({x:e.clientX-rect.left, y:e.clientY-rect.top});
+        currentLasso.push({x:e.clientX-rect.left,y:e.clientY-rect.top});
 
-        // 再描画
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img,0,0);
 
         ctx.lineWidth = 2;
 
-        // 過去の線
+        // 過去の全ての lasso
         ctx.strokeStyle = "red";
         for(const l of window.lassoList){
           ctx.beginPath();
-          ctx.moveTo(l[0].x, l[0].y);
+          ctx.moveTo(l[0].x,l[0].y);
           for(const p of l) ctx.lineTo(p.x,p.y);
           ctx.closePath();
           ctx.stroke();
         }
 
-        // 現在
+        // 今描いている線
         ctx.strokeStyle = "yellow";
         ctx.beginPath();
-        ctx.moveTo(currentLasso[0].x, currentLasso[0].y);
+        ctx.moveTo(currentLasso[0].x,currentLasso[0].y);
         for(const p of currentLasso) ctx.lineTo(p.x,p.y);
         ctx.stroke();
       });
 
       canvas.addEventListener("mouseup", ()=>{ drawing=false; });
 
-      // ボタン
       document.getElementById("finishLasso").onclick = ()=>{
         if(currentLasso.length>1){
           window.lassoList.push(currentLasso);
@@ -211,7 +196,7 @@ stimuli.forEach(function(stim){
         ctx.strokeStyle = "red";
         for(const l of window.lassoList){
           ctx.beginPath();
-          ctx.moveTo(l[0].x, l[0].y);
+          ctx.moveTo(l[0].x,l[0].y);
           for(const p of l) ctx.lineTo(p.x,p.y);
           ctx.closePath();
           ctx.stroke();
@@ -223,24 +208,10 @@ stimuli.forEach(function(stim){
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img,0,0);
       };
-
-      // ---------------- スライダー ----------------
-      const sliderDiv = document.getElementById("sliderContainer");
-      sliderDiv.innerHTML = `
-        <input type="range" id="finalSlider" min="0" max="6" step="1" value="3" style="width:800px">
-        <p id="sliderLabel">不明</p>
-      `;
-      const labelNames = ["完全に人間","かなり人間","やや人間","不明","ややAI","かなりAI","完全にAI"];
-      const finalSlider = document.getElementById("finalSlider");
-      finalSlider.oninput = ()=>{
-        document.getElementById("sliderLabel").innerText =
-          labelNames[finalSlider.value];
-      };
     },
 
     on_finish: function(data){
       data.reason_final = document.getElementById("reason_final").value;
-      data.final_slider = document.getElementById("finalSlider").value;
       data.lasso = window.lassoList;
     }
   });
@@ -249,7 +220,7 @@ stimuli.forEach(function(stim){
 
 
 // ====================================================================
-// 最後に：データダウンロード
+// 最後：データダウンロード
 // ====================================================================
 timeline.push({
   type: jsPsychHtmlKeyboardResponse,
@@ -261,10 +232,12 @@ timeline.push({
   `,
 
   on_load: function(){
-    document.getElementById("downloadBtn").onclick = function(){
-      const allData = jsPsych.data.get().values();
 
+    document.getElementById("downloadBtn").onclick = function(){
+
+      const allData = jsPsych.data.get().values();
       const jsonStr = JSON.stringify(allData, null, 2);
+
       const blob = new Blob([jsonStr], {type:"application/json"});
       const url = URL.createObjectURL(blob);
 
