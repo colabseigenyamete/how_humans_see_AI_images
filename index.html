@@ -41,33 +41,7 @@ var stimuli = [
 
 stimuli.forEach(function(stim){
 
-  // (1) 初期スライダー回答（画像はまだ表示しない）
-  timeline.push({
-    type: jsPsychHtmlSliderResponse,
-    stimulus: `
-      <p>これから画像を提示します。まず先に「全体としてAIっぽいか」を回答してください。</p>
-      <p>画像を見る前の直感で回答してください。</p>
-    `,
-    labels: ["完全に人間", "かなり人間", "やや人間", "不明", "ややAI", "かなりAI", "完全にAI"],
-    min: 0, max: 6, start: 3, step: 1,
-    require_movement: true,
-    slider_width: 800,
-    data: {trial_type: "initial_slider", img: stim.stimulus}
-  });
-
-  // (2) 初期理由
-  timeline.push({
-    type: jsPsychSurveyHtmlForm,
-    preamble: `<p>初期判断の理由を記述してください。</p>`,
-    html: `<textarea name="reason_initial" rows="5" cols="60"></textarea>`,
-    data: {trial_type: "initial_reason", img: stim.stimulus},
-    on_finish: function(data){
-      data.reason_initial = data.response.reason_initial;
-      delete data.response;
-    }
-  });
-
-  // (3) 再提示（画像をずっと表示）＋投げ縄＋スライダー＋理由編集
+  // (5) 再提示 + 投げ縄選択 + スライダー + 理由編集
   timeline.push({
     type: jsPsychHtmlSliderResponse,
 
@@ -78,11 +52,11 @@ stimuli.forEach(function(stim){
       var last_reason = last_data?.reason_initial || "";
 
       return `
-        <p>画像を表示します。怪しい箇所を囲んでください（複数箇所可）。</p>
+        <p>怪しい箇所を囲んで選択してください（複数可）。</p>
 
         <canvas id="lassoCanvas"></canvas><br>
 
-        <button class="btn" id="finishLasso">囲み確定（1つ追加）</button>
+        <button class="btn" id="finishLasso">囲み確定</button>
         <button class="btn" id="resetLasso">やり直す</button>
 
         <p>理由（編集可）:<br>
@@ -135,7 +109,7 @@ stimuli.forEach(function(stim){
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img, 0, 0);
 
-        // 既存ラッソ
+        // すでに確定したラッソ
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
         for(const l of window.lassoList){
@@ -146,7 +120,7 @@ stimuli.forEach(function(stim){
           ctx.stroke();
         }
 
-        // 現在描画中のラッソ
+        // 描画中のラッソ
         ctx.strokeStyle = "yellow";
         ctx.beginPath();
         ctx.moveTo(currentLasso[0].x, currentLasso[0].y);
@@ -154,7 +128,9 @@ stimuli.forEach(function(stim){
         ctx.stroke();
       });
 
-      canvas.addEventListener("mouseup", ()=>{ drawing = false; });
+      canvas.addEventListener("mouseup", ()=>{
+        drawing = false;
+      });
 
       document.getElementById("finishLasso").onclick = function(){
         if(currentLasso.length > 1) window.lassoList.push(currentLasso);
@@ -184,6 +160,7 @@ stimuli.forEach(function(stim){
       data.reason_final = document.getElementById("reason_final").value;
       data.lasso = window.lassoList;
     }
+
   });
 
 });
@@ -192,7 +169,7 @@ stimuli.forEach(function(stim){
 timeline.push({
   type: jsPsychHtmlKeyboardResponse,
   stimulus: `<p>実験終了です。ありがとうございました。</p>
-             <p><button id="download">JSONデータを保存</button></p>`,
+             <p><button id="download">実験結果を保存（JSON）</button></p>`,
   choices: "NO_KEYS",
 
   on_load: function() {
@@ -204,7 +181,7 @@ timeline.push({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'experiment_data.json';
+      a.download = '実験データ.json';
       a.click();
       URL.revokeObjectURL(url);
 
