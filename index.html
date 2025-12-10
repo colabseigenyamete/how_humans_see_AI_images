@@ -39,17 +39,7 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbx3iuUEpzbbRYT3EL0UPPAE
 
 // ------------------ jsPsych 初期化 ------------------
 var jsPsych = initJsPsych({
-  on_finish: async function(){
-    // 実験終了時に Google Drive 保存へ送信
-    const allData = jsPsych.data.get().values();
-
-    await fetch(GAS_URL, {
-      method: "POST",
-      body: JSON.stringify(allData)
-    })
-    .then(r => alert("データを Google Drive に保存しました！"))
-    .catch(e => alert("送信エラー: " + e));
-  }
+  
 });
 
 var timeline = [];
@@ -253,11 +243,33 @@ timeline.push({
   type: jsPsychHtmlKeyboardResponse,
   choices: "NO_KEYS",
   stimulus: `<p>実験は終了です。ありがとうございました。</p>
-             <p>データは自動で Google Drive に保存されます。</p>`
+             <p>データは自動で Google Drive に保存されます。</p>`,
+
+  on_finish: async function() {
+
+    const allData = jsPsych.data.get().values();
+
+    try {
+      const response = await fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify(allData)
+      });
+
+      console.log("送信完了", response);
+
+      alert("Google Drive にデータを保存しました！");
+    } catch(err) {
+      console.error("送信エラー:", err);
+      alert("送信に失敗しました。ネットワークを確認してください。");
+    }
+
+  }
 });
+
 
 // Run
 jsPsych.run(timeline);
 
 </script>
 </html>
+
