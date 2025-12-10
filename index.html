@@ -242,29 +242,37 @@ stimuli.forEach(function(stim){
 timeline.push({
   type: jsPsychHtmlKeyboardResponse,
   choices: "NO_KEYS",
-  stimulus: `<p>実験は終了です。ありがとうございました。</p>
-             <p>データは自動で Google Drive に保存されます。</p>`,
+  stimulus: `
+    <p>実験は終了です。ありがとうございました。</p>
+    <p>下のボタンを押すと Google Drive にデータが送信されます。</p>
+    <button id="sendDataBtn" class="btn">データ送信</button>
+    <p id="sendStatus"></p>
+  `,
 
-  on_finish: async function() {
+  on_load: function () {
+    document.getElementById("sendDataBtn").onclick = async function() {
+      document.getElementById("sendDataBtn").disabled = true;
+      document.getElementById("sendStatus").innerHTML = "送信中…";
 
-    const allData = jsPsych.data.get().values();
+      const allData = jsPsych.data.get().values();
 
-    try {
-      const response = await fetch(GAS_URL, {
-        method: "POST",
-        body: JSON.stringify(allData)
-      });
+      try {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify(allData)
+        });
 
-      console.log("送信完了", response);
+        document.getElementById("sendStatus").innerHTML = "✔ 送信完了しました！";
+        console.log("送信成功", res);
 
-      alert("Google Drive にデータを保存しました！");
-    } catch(err) {
-      console.error("送信エラー:", err);
-      alert("送信に失敗しました。ネットワークを確認してください。");
-    }
-
+      } catch (err) {
+        document.getElementById("sendStatus").innerHTML = "❌ 送信に失敗しました";
+        console.error("送信エラー:", err);
+      }
+    };
   }
 });
+
 
 
 // Run
@@ -272,4 +280,5 @@ jsPsych.run(timeline);
 
 </script>
 </html>
+
 
