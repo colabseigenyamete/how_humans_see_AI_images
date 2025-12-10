@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>AI画像識別実験</title>
+
   <script src="https://unpkg.com/jspsych@7.3.3"></script>
   <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
   <script src="https://unpkg.com/@jspsych/plugin-image-keyboard-response"></script>
@@ -10,71 +11,175 @@
   <script src="https://unpkg.com/@jspsych/plugin-survey-html-form"></script>
 
   <style>
-    .jspsych-html-slider-response-container .jspsych-slider {
-      width: 100% !important;
-      margin: 0 auto;
+    body {
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      font-family: sans-serif;
     }
-    canvas { border: 1px solid #444; }
+
+    .center-block {
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    canvas {
+      border: 1px solid #444;
+      max-width: 95vw;
+      height: auto;
+    }
+
     .btn {
       padding: 8px 16px;
       background: #0066cc;
       color: white;
       border: none;
-      border-radius: 5px;
-      margin-right: 10px;
+      border-radius: 6px;
+      margin: 6px;
       cursor: pointer;
+    }
+
+    /* ▼ スライダーを常に画面幅にフィット */
+    .jspsych-html-slider-response-container .jspsych-slider {
+      width: 90vw !important;
+      max-width: 900px;
+    }
+
+    /* ▼ 7段階目盛りを表示するバー */
+    .ticks {
+      position: relative;
+      width: 90vw;
+      max-width: 900px;
+      height: 20px;
+      margin: 0 auto;
+    }
+
+    .tick {
+      position: absolute;
+      width: 2px;
+      height: 15px;
+      background: #333;
+      left: calc(var(--pos) * 1%);
+      top: 0;
+    }
+
+    /* ラベル */
+    .slider-labels {
+      width: 90vw;
+      max-width: 900px;
+      display: flex;
+      justify-content: space-between;
+      margin-top: 5px;
+      font-size: 16px;
+    }
+
+    .slider-center-label {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    /* jsPsychスライダー全体を中央寄せ */
+    .jspsych-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center !important;
+    justify-content: center;
+    text-align: center;
+    }
+
+    /* スライダー本体を中央に固定 */
+    .jspsych-html-slider-response-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center !important;
     }
   </style>
 </head>
+
 <body></body>
 
 <script>
-
-var jsPsych = initJsPsych();
+var jsPsych = initJsPsych({override_safe_mode: true});
 var timeline = [];
 
 // === 刺激リスト ===
 var stimuli = [
-  {stimulus: 'stimuli/sample1.png'},
-  {stimulus: 'stimuli/sample2.png'}
+  {stimulus: 'stimuli/cat_drawing_notAI.jpg'},
+  {stimulus: 'stimuli/cat_drawing_AI.png'},
+  {stimulus: 'stimuli/cat_picture_notAI.jpg'},
+  {stimulus: 'stimuli/cat_picture_AI.jpg'},
+  {stimulus: 'stimuli/cat_photo_notAI.png'},
+  {stimulus: 'stimuli/cat_photo_AI.png'},
+  {stimulus: 'stimuli/cat_watercolor_notAI.jpg'},
+  {stimulus: 'stimuli/cat_watercolor_AI.jpg'},
+  {stimulus: 'stimuli/cat_oilpainting_notAI.jpg'},
+  {stimulus: 'stimuli/cat_oilpainting_AI.jpg'}
 ];
 
 stimuli.forEach(function(stim){
 
-  // (5) 再提示 + 投げ縄選択 + スライダー + 理由編集
   timeline.push({
     type: jsPsychHtmlSliderResponse,
 
     stimulus: function(){
-      var last_data = jsPsych.data.get()
-        .filter({trial_type: "initial_reason"})
-        .last(1).values()[0];
-      var last_reason = last_data?.reason_initial || "";
-
       return `
-        <p>怪しい箇所を囲んで選択してください（複数可）。</p>
+        <div class="center-block">
+          <p>怪しい箇所を囲んで選択してください（複数可）。</p>
 
-        <canvas id="lassoCanvas"></canvas><br>
+          <canvas id="lassoCanvas"></canvas>
 
-        <button class="btn" id="finishLasso">囲み確定</button>
-        <button class="btn" id="resetLasso">やり直す</button>
+          <div>
+            <button class="btn" id="finishLasso">囲み確定</button>
+            <button class="btn" id="resetLasso">やり直す</button>
+          </div>
 
-        <p>理由（編集可）:<br>
-        <textarea id="reason_final" rows="5" cols="60">${last_reason}</textarea></p>
+          <p>判断理由:</p>
+          <textarea id="reason_final" rows="5" cols="60"></textarea>
+
+          <br><br>
+
+          <!-- ▼ ラベル（非AI | 不明 | AI） -->
+          <div class="slider-labels" style="position: relative;">
+            <span>非AI</span>
+            <span class="slider-center-label">不明</span>
+            <span>AI</span>
+          </div>
+
+          <!-- ▼ 7段階用の目盛り -->
+          <div class="ticks">
+            <div class="tick" style="--pos:0;"></div>
+            <div class="tick" style="--pos:16.6;"></div>
+            <div class="tick" style="--pos:33.3;"></div>
+            <div class="tick" style="--pos:50;"></div>
+            <div class="tick" style="--pos:66.6;"></div>
+            <div class="tick" style="--pos:83.3;"></div>
+            <div class="tick" style="--pos:100;"></div>
+          </div>
+        </div>
       `;
     },
 
-    labels: ["完全に人間","かなり人間","やや人間","不明","ややAI","かなりAI","完全にAI"],
-    min: 0, max: 6, start: 3, step: 1,
-    require_movement: true,
-    slider_width: 800,
+    min: 0,
+    max: 6,
+    start: 3,
+    step: 1,
+    slider_width: 900,
+
+    button_label: "次の問題へ",
+
     data: {trial_type:"final_reason", img:stim.stimulus},
 
-    on_load: function(){
+    on_load: function() {
 
+      /* ==== キャンバスのラッソ処理 ==== */
       const canvas = document.getElementById("lassoCanvas");
       const ctx    = canvas.getContext("2d");
-
       const img = new Image();
       img.src = stim.stimulus;
 
@@ -92,26 +197,20 @@ stimuli.forEach(function(stim){
         drawing = true;
         currentLasso = [];
         const rect = canvas.getBoundingClientRect();
-        currentLasso.push({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        });
+        currentLasso.push({x: e.clientX - rect.left, y: e.clientY - rect.top});
       });
 
       canvas.addEventListener("mousemove", e=>{
         if(!drawing) return;
         const rect = canvas.getBoundingClientRect();
-        currentLasso.push({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        });
+        currentLasso.push({x: e.clientX - rect.left, y: e.clientY - rect.top});
 
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img, 0, 0);
 
-        // すでに確定したラッソ
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
+
         for(const l of window.lassoList){
           ctx.beginPath();
           ctx.moveTo(l[0].x, l[0].y);
@@ -120,7 +219,6 @@ stimuli.forEach(function(stim){
           ctx.stroke();
         }
 
-        // 描画中のラッソ
         ctx.strokeStyle = "yellow";
         ctx.beginPath();
         ctx.moveTo(currentLasso[0].x, currentLasso[0].y);
@@ -128,13 +226,10 @@ stimuli.forEach(function(stim){
         ctx.stroke();
       });
 
-      canvas.addEventListener("mouseup", ()=>{
-        drawing = false;
-      });
+      canvas.addEventListener("mouseup", ()=>{ drawing = false; });
 
       document.getElementById("finishLasso").onclick = function(){
         if(currentLasso.length > 1) window.lassoList.push(currentLasso);
-
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img, 0, 0);
 
@@ -143,7 +238,7 @@ stimuli.forEach(function(stim){
         for(const l of window.lassoList){
           ctx.beginPath();
           ctx.moveTo(l[0].x, l[0].y);
-          l.forEach(p => ctx.lineTo(p.x,p.y));
+          l.forEach(p => ctx.lineTo(p.x, p.y));
           ctx.closePath();
           ctx.stroke();
         }
@@ -160,36 +255,34 @@ stimuli.forEach(function(stim){
       data.reason_final = document.getElementById("reason_final").value;
       data.lasso = window.lassoList;
     }
-
   });
 
 });
 
-// === 実験終了画面（JSONダウンロード） ===
+// === 実験終了画面 ===
 timeline.push({
   type: jsPsychHtmlKeyboardResponse,
-  stimulus: `<p>実験終了です。ありがとうございました。</p>
-             <p><button id="download">実験結果を保存（JSON）</button></p>`,
+  stimulus: `
+    <p>実験終了です。ありがとうございました。</p>
+    <p><button id="download">実験結果を保存（JSON）</button></p>
+  `,
   choices: "NO_KEYS",
 
   on_load: function() {
     document.getElementById('download').addEventListener('click', function() {
-
       const json = JSON.stringify(jsPsych.data.get().values(), null, 2);
       const blob = new Blob([json], { type: "application/json" });
-
       const url = URL.createObjectURL(blob);
+
       const a = document.createElement('a');
       a.href = url;
-      a.download = '実験データ.json';
+      a.download = '実験結果.json';
       a.click();
       URL.revokeObjectURL(url);
-
     });
   }
 });
 
 jsPsych.run(timeline);
-
 </script>
 </html>
